@@ -1,0 +1,34 @@
+/* Design tokens the page expects (normally provided by claude.ai), light and dark. */
+:root {
+  --font-anthropic-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-anthropic-serif: ui-serif, Georgia, "Times New Roman", serif;
+  --color-fg: #1f1e1d; --color-fg-muted: #6b6a66; --color-bg: #faf9f5; --color-panel: #ffffff;
+  --color-border-line: #e5e3dc; --color-ok: #2e7d4f; --color-warn: #a86a00; --color-bad: #c0392b;
+  --cds-text-secondary: #6b6a66; --cds-surface-popover: #ffffff; --cds-border: #dcd9d0;
+  --cds-shadow-popover: 0 4px 16px rgba(0,0,0,.12);
+  --cds-chart-muted: #dedbd2; --cds-chart-grid: #efede7; --cds-chart-axis: #b9b5aa; --cds-chart-reference: #8c887d;
+  --series-1: #3b6fd8; --series-2: #e07a3f; --series-3: #2f9e7a; --series-4: #9b59b6;
+  --series-5: #d4a72c; --series-6: #c2557a; --series-7: #4aa3c7; --series-8: #7f8c3a;
+  --cds-font-size-caption: 0.78rem; --cds-font-size-body: 0.9rem; --cds-font-size-heading: 1.05rem; --cds-font-size-title: 1.9rem;
+  --cds-font-weight-medium: 500;
+  --cds-gap-xs: 4px; --cds-gap-sm: 8px; --cds-gap-md: 16px; --cds-gap-lg: 24px; --cds-gap-xl: 32px;
+  --cds-pad-xs: 4px; --cds-pad-sm: 8px; --cds-pad-md: 12px; --cds-pad-lg: 16px; --cds-pad-xl: 24px;
+  --cds-radius: 10px; --cds-dur-slow: 300ms; --cds-ease-out: cubic-bezier(.2,.8,.2,1);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-fg: #ecebe6; --color-fg-muted: #a3a19a; --color-bg: #1c1b19; --color-panel: #262523;
+    --color-border-line: #3a3935; --color-ok: #5cc48a; --color-warn: #e0a33a; --color-bad: #ef6b5b;
+    --cds-text-secondary: #a3a19a; --cds-surface-popover: #2e2d2a; --cds-border: #45433f;
+    --cds-shadow-popover: 0 4px 16px rgba(0,0,0,.5);
+    --cds-chart-muted: #4a4843; --cds-chart-grid: #33322f; --cds-chart-axis: #5d5b55; --cds-chart-reference: #8c887d;
+    --series-1: #6f9bf0; --series-2: #f0955f;
+  }
+}
+body { margin: 0; background: var(--color-bg); color: var(--color-fg); font-family: var(--font-anthropic-sans); }
+#dash-root { max-width: 1280px; margin: 0 auto; padding: 24px 16px 48px; }
+.dash-skeleton:empty, .dash-skeleton { position: relative; }
+.dash-skeleton { color: transparent !important; }
+.dash-skeleton::after { content: ""; position: absolute; left: 0; top: 50%; width: min(8rem, 60%); height: .8em; transform: translateY(-50%);
+  border-radius: 6px; background: var(--cds-chart-grid); }
+.tx-chart.dash-skeleton::after { inset: 0; width: auto; height: auto; transform: none; }

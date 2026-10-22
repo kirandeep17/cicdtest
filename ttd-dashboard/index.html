@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TTD Taxonomy Tracker</title>
+<link rel="stylesheet" href="theme.css">
+<script src="d3.v7.9.0.min.js"></script>
+<script src="dash-local.js"></script>
+</head>
+<body>
+<div id="dash-root">
+<style>
+.tx { font-family: var(--font-anthropic-sans); color: var(--color-fg); display: grid; gap: var(--cds-gap-lg); }
+.tx-head h1 { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0 0 var(--cds-gap-xs); }
+.tx-takeaway { margin: 0; color: var(--color-fg-muted); font-size: var(--cds-font-size-body); min-height: 1.4em; }
+.tx-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10.5rem), 1fr)); gap: var(--cds-gap-md); }
+.tx-card { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); min-width: 0; }
+.tx-kpi-label { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.tx-kpi-value { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); font-variant-numeric: tabular-nums; margin: var(--cds-gap-xs) 0; line-height: 1.15; }
+.tx-kpi-sub { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); font-variant-numeric: tabular-nums; }
+.tx-card h2 { font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); margin: 0; }
+.tx-note { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin: var(--cds-gap-xs) 0 var(--cds-gap-md); }
+.tx-legend { display: flex; flex-wrap: wrap; gap: var(--cds-gap-md); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin-bottom: var(--cds-gap-sm); }
+.tx-legend span { display: inline-flex; align-items: center; gap: var(--cds-gap-xs); }
+.tx-legend i { width: 0.7rem; height: 0.7rem; border-radius: 2px; display: inline-block; }
+.tx-chart { position: relative; min-height: 420px; }
+.tx-tip { position: absolute; pointer-events: none; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); border-radius: var(--cds-radius); box-shadow: var(--cds-shadow-popover); padding: var(--cds-pad-xs) var(--cds-pad-sm); font-size: var(--cds-font-size-caption); font-variant-numeric: tabular-nums; white-space: nowrap; z-index: 2; }
+.tx-tip .tx-tip-h { color: var(--cds-text-secondary); margin-bottom: 2px; }
+.tx-tip .tx-tip-r { display: flex; align-items: center; gap: var(--cds-gap-xs); }
+.tx-tip i { width: 0.55rem; height: 0.55rem; border-radius: 2px; display: inline-block; }
+.tx-tools { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm); align-items: center; margin-bottom: var(--cds-gap-sm); }
+.tx-search { font: inherit; font-size: var(--cds-font-size-body); padding: var(--cds-pad-xs) var(--cds-pad-sm); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); background: var(--color-bg); color: var(--color-fg); min-width: 0; flex: 1 1 14rem; max-width: 22rem; }
+.tx-count { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.tx-scroll { max-height: 34rem; overflow: auto; }
+.tx-table { width: 100%; border-collapse: collapse; font-size: var(--cds-font-size-body); font-variant-numeric: tabular-nums; }
+.tx-table th { position: sticky; top: 0; background: var(--color-panel); text-align: left; font-weight: var(--cds-font-weight-medium); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); border-bottom: 1px solid var(--color-border-line); padding: 0; z-index: 1; }
+.tx-table th button { all: unset; cursor: pointer; display: block; padding: var(--cds-pad-xs) var(--cds-pad-sm); white-space: nowrap; }
+.tx-table th.num, .tx-table td.num { text-align: right; }
+.tx-table th[aria-sort=ascending] button::after { content: " ↑"; }
+.tx-table th[aria-sort=descending] button::after { content: " ↓"; }
+.tx-table td { padding: var(--cds-pad-xs) var(--cds-pad-sm); border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
+.tx-table td.tx-name { white-space: normal; min-width: 9rem; }
+.tx-sub { display: block; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.tx-ok { color: var(--color-ok); } .tx-warn { color: var(--color-warn); } .tx-bad { color: var(--color-bad); }
+.tx-stale { color: var(--color-warn); }
+@media (max-width: 720px) { .tx-table .tx-hide { display: none; } }
+.tx-fail { display: flex; align-items: center; justify-content: center; gap: var(--cds-gap-xs); color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); min-height: inherit; }
+.tx-fail::before { content: ""; width: 0.375rem; height: 0.375rem; border-radius: 50%; background: var(--color-bad); }
+.tx [data-dash-source-state=empty] { color: transparent; }
+.tx [data-dash-source-state=refreshing] { opacity: .5; transition: opacity var(--cds-dur-slow); }
+.tx-chart .tx-bar-row { transition: opacity var(--cds-dur-slow) var(--cds-ease-out); }
+.tx-chart.tx-hovering .tx-bar-row:not(.tx-on) { opacity: .35; }
+.tx-table tbody tr { transition: background-color var(--cds-dur-slow); }
+.tx-table tbody tr:hover { background: var(--cds-chart-grid); }
+.tx-kpis .tx-card { transition: transform var(--cds-dur-slow) var(--cds-ease-out), box-shadow var(--cds-dur-slow) var(--cds-ease-out); }
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes tx-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+  @keyframes tx-fade { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
+  @keyframes tx-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+  .tx.tx-intro .tx-head, .tx.tx-intro .tx-kpis .tx-card, .tx.tx-intro > section.tx-card { animation: tx-rise var(--cds-dur-slow) var(--cds-ease-out) both; animation-duration: 600ms; }
+  .tx.tx-intro .tx-kpis .tx-card:nth-child(1) { animation-delay: 60ms; }
+  .tx.tx-intro .tx-kpis .tx-card:nth-child(2) { animation-delay: 120ms; }
+  .tx.tx-intro .tx-kpis .tx-card:nth-child(3) { animation-delay: 180ms; }
+  .tx.tx-intro .tx-kpis .tx-card:nth-child(4) { animation-delay: 240ms; }
+  .tx.tx-intro .tx-kpis .tx-card:nth-child(5) { animation-delay: 300ms; }
+  .tx.tx-intro #funnel-chart { animation-delay: 380ms; }
+  .tx.tx-intro #taxonomy-table { animation-delay: 460ms; }
+  .tx-table tbody tr.tx-row-in { animation: tx-fade 500ms var(--cds-ease-out) both; }
+  .tx-kpis .tx-card:hover { transform: translateY(-3px); box-shadow: var(--cds-shadow-popover); }
+  .tx-kpi-value.tx-stale { animation: tx-pulse 2.4s var(--cds-ease-out) infinite; }
+}
+</style>
+
+<div class="tx">
+  <header class="tx-head" id="overview">
+    <h1>TTD taxonomy tracker</h1>
+    <p class="tx-takeaway dash-skeleton" data-source="summary"></p>
+  </header>
+
+  <section class="tx-kpis" id="headline" aria-label="Totals across all taxonomies">
+    <div class="tx-card">
+      <div class="tx-kpi-label">Taxonomies</div>
+      <div class="tx-kpi-value dash-skeleton" data-source="summary" data-field="taxonomies">—</div>
+      <div class="tx-kpi-sub"><span data-source="summary" data-field="approved">—</span> approved</div>
+    </div>
+    <div class="tx-card">
+      <div class="tx-kpi-label">UIDs sent</div>
+      <div class="tx-kpi-value dash-skeleton" data-source="summary" data-field="sent">—</div>
+      <div class="tx-kpi-sub">All taxonomies, latest transmission</div>
+    </div>
+    <div class="tx-card">
+      <div class="tx-kpi-label">Received by TTD</div>
+      <div class="tx-kpi-value dash-skeleton" data-source="summary" data-field="received">—</div>
+      <div class="tx-kpi-sub"><span data-source="summary" data-field="matchRate">—</span> of sent</div>
+    </div>
+    <div class="tx-card">
+      <div class="tx-kpi-label">Active IDs</div>
+      <div class="tx-kpi-value dash-skeleton" data-source="summary" data-field="active">—</div>
+      <div class="tx-kpi-sub"><span data-source="summary" data-field="activeRate">—</span> of received</div>
+    </div>
+    <div class="tx-card">
+      <div class="tx-kpi-label">Stale transmissions</div>
+      <div class="tx-kpi-value dash-skeleton" data-source="summary" data-field="stale">—</div>
+      <div class="tx-kpi-sub">No send in 7+ days</div>
+    </div>
+  </section>
+
+  <section class="tx-card" id="funnel-chart">
+    <h2>Sent → received → active, by taxonomy</h2>
+    <p class="tx-note">Bars share one scale. The gap between sent and received is what TTD didn't match; the gap to active is IDs that went inactive.</p>
+    <div class="tx-legend">
+      <span><i style="background: var(--cds-chart-muted)"></i>UIDs sent</span>
+      <span><i class="tx-sw-recv"></i>Received</span>
+      <span><i class="tx-sw-act"></i>Active</span>
+    </div>
+    <div class="tx-chart dash-skeleton" data-source="taxonomies"></div>
+  </section>
+
+  <section class="tx-card" id="taxonomy-table">
+    <h2>All taxonomies</h2>
+    <p class="tx-note">Click a header to sort. Match rate = received ÷ sent; active rate = active ÷ received. Stale = last send 7+ days before the newest one.</p>
+    <div class="tx-tools">
+      <input class="tx-search" type="search" placeholder="Search name, ID, status…" aria-label="Search taxonomies">
+      <span class="tx-count"></span>
+    </div>
+    <div class="tx-scroll">
+      <table class="tx-table" data-source="taxonomies" data-row-key="TaxonomyId">
+        <thead><tr>
+          <th data-field="DisplayName" data-k="DisplayName"><button>Taxonomy</button></th>
+          <th data-field="TaxonomyId" data-k="TaxonomyId"><button>Taxonomy ID</button></th>
+          <th data-field="ThirdPartyDataId" data-k="ThirdPartyDataId" class="num tx-hide"><button>TTD audience ID</button></th>
+          <th data-field="TaxonomyComplianceStatus" data-k="TaxonomyComplianceStatus"><button>Status</button></th>
+          <th data-field="CPMRate" data-k="CPMRate" class="num tx-hide"><button>CPM rate</button></th>
+          <th data-field="UIDsSent" data-k="UIDsSent" class="num"><button>UIDs sent</button></th>
+          <th data-field="ReceivedIDsCount" data-k="ReceivedIDsCount" class="num"><button>Received</button></th>
+          <th data-field="ActiveIDsCount" data-k="ActiveIDsCount" class="num"><button>Active</button></th>
+          <th data-source="rates" data-field="MatchRate" data-k="MatchRate" class="num tx-hide"><button>Match rate</button></th>
+          <th data-source="rates" data-field="ActiveRate" data-k="ActiveRate" class="num tx-hide"><button>Active rate</button></th>
+          <th data-field="LastUpdatedAtUTC" data-k="LastUpdatedAtUTC" class="tx-hide"><button>TTD last updated (UTC)</button></th>
+          <th data-field="LastTransmissionAtUTC" data-k="LastTransmissionAtUTC"><button>Last transmission (UTC)</button></th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script>
+dash.calc('rates', {
+  title: 'Match and active rate per taxonomy',
+  description: 'Received ÷ sent and active ÷ received for each taxonomy, plus days between its last send and the newest send.',
+  inputs: ['taxonomies'],
+  fn: (taxonomies) => {
+    const t = (r) => Date.parse(r.LastTransmissionAtUTC + 'Z');
+    const newest = Math.max(...taxonomies.map(t));
+    return taxonomies.map((r) => ({
+      TaxonomyId: r.TaxonomyId,
+      MatchRate: Number(r.UIDsSent) ? Number(r.ReceivedIDsCount) / Number(r.UIDsSent) : null,
+      ActiveRate: Number(r.ReceivedIDsCount) ? Number(r.ActiveIDsCount) / Number(r.ReceivedIDsCount) : null,
+      DaysSinceTx: Math.floor((newest - t(r)) / 86400000),
+    }));
+  },
+});
+
+dash.calc('summary', {
+  title: 'Totals across taxonomies',
+  description: 'Sums of sent, received and active IDs, overall match and active rates, and taxonomies with no send in 7+ days.',
+  inputs: ['taxonomies', 'rates'],
+  fn: (taxonomies, rates) => {
+    const sum = (k) => taxonomies.reduce((a, r) => a + Number(r[k] || 0), 0);
+    const sent = sum('UIDsSent'), received = sum('ReceivedIDsCount'), active = sum('ActiveIDsCount');
+    return {
+      taxonomies: taxonomies.length,
+      approved: taxonomies.filter((r) => r.TaxonomyComplianceStatus === 'Approved').length,
+      sent, received, active,
+      matchRate: sent ? received / sent : null,
+      activeRate: received ? active / received : null,
+      stale: rates.filter((r) => r.DaysSinceTx >= 7).length,
+    };
+  },
+});
+</script>
+
+<script>
+(() => {
+  const root = document.querySelector('.tx');
+  const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
+  const fmtN = d3.format(',');
+  const pct = d3.format('.1%');
+  const fmtDate = d3.utcFormat('%b %-d, %Y %H:%M');
+  const parse = (s) => (s ? new Date(s + 'Z') : null);
+  const motion = window.matchMedia('(prefers-reduced-motion: no-preference)').matches;
+  const played = { kpi: false, chart: false, table: false };
+  if (motion) root.classList.add('tx-intro');
+  root.querySelector('.tx-sw-recv').style.background = dash.colors[0];
+  root.querySelector('.tx-sw-act').style.background = dash.colors[1];
+
+  const failLine = (el) => { el.replaceChildren(); const d = document.createElement('div'); d.className = 'tx-fail'; d.textContent = 'Failed to load'; el.appendChild(d); };
+
+  // ---------- Headline ----------
+  function drawSummary() {
+    const s = dash.data('summary');
+    const els = root.querySelectorAll('[data-source="summary"]');
+    if (s.status !== 'ok' || !s.data || Array.isArray(s.data)) {
+      els.forEach((el) => { if (el.dataset.field) el.textContent = '—'; });
+      if (s.status === 'error') els.forEach((el) => el.classList.remove('dash-skeleton'));
+      return;
+    }
+    const v = s.data;
+    const show = { taxonomies: fmtN, approved: fmtN, sent: compact.format, received: compact.format, active: compact.format, matchRate: pct, activeRate: pct, stale: fmtN };
+    const countUp = motion && !played.kpi;
+    played.kpi = true;
+    els.forEach((el, i) => {
+      el.classList.remove('dash-skeleton');
+      const f = el.dataset.field;
+      if (!f) return;
+      if (v[f] == null) { el.textContent = '—'; return; }
+      if (!countUp) { el.textContent = show[f](v[f]); return; }
+      // count up from zero, ending on the exact value
+      const end = v[f], dur = 1100, delay = 150 + i * 60, ease = d3.easeCubicOut;
+      const t0 = performance.now() + delay;
+      el.textContent = show[f](0);
+      const step = (now) => {
+        const k = Math.min(1, Math.max(0, (now - t0) / dur));
+        el.textContent = k >= 1 ? show[f](end) : show[f](Number.isInteger(end) ? Math.round(end * ease(k)) : end * ease(k));
+        if (k < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    });
+    const staleEl = root.querySelector('[data-field="stale"].tx-kpi-value');
+    staleEl.classList.toggle('tx-stale', v.stale > 0);
+    root.querySelector('.tx-takeaway').textContent =
+      `TTD matched ${pct(v.matchRate)} of the ${compact.format(v.sent)} UIDs sent across ${v.taxonomies} taxonomies, and ${pct(v.activeRate)} of those are still active` +
+      (v.stale ? ` — ${v.stale} ${v.stale === 1 ? 'taxonomy hasn’t' : 'taxonomies haven’t'} had a send in 7+ days.` : '.');
+  }
+
+  // ---------- Chart ----------
+  const chartBox = root.querySelector('.tx-chart');
+  let drawnOnce = false;
+  function drawChart() {
+    const d = dash.data('taxonomies');
+    if (d.status === 'error') { chartBox.classList.remove('dash-skeleton'); failLine(chartBox); return; }
+    if (d.status !== 'ok') { chartBox.replaceChildren(); chartBox.classList.add('dash-skeleton'); return; }
+    chartBox.classList.remove('dash-skeleton');
+    chartBox.replaceChildren();
+    const rows = d.data.map((r) => ({ name: r.DisplayName, id: r.TaxonomyId, sent: +r.UIDsSent, recv: +r.ReceivedIDsCount, act: +r.ActiveIDsCount }))
+      .sort((a, b) => b.sent - a.sent);
+    if (!rows.length) return;
+    const W = Math.max(280, chartBox.clientWidth);
+    const band = 28;
+    const top = 4, bottom = 26;
+    const H = top + bottom + band * rows.length;
+
+    const svg = d3.select(chartBox).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).style('display', 'block');
+    // measure label widths
+    const probe = svg.append('g').attr('font-size', 'var(--cds-font-size-caption)').style('font-family', 'var(--font-anthropic-sans)');
+    let maxL = 0;
+    rows.forEach((r) => { const t = probe.append('text').text(r.name); maxL = Math.max(maxL, t.node().getComputedTextLength()); });
+    probe.remove();
+    const left = Math.min(maxL + 12, W * 0.4);
+    const right = 48;
+    const x = d3.scaleLinear([0, d3.max(rows, (r) => r.sent)], [left, W - right]).nice();
+    const y = d3.scaleBand(rows.map((r) => r.id), [top, H - bottom]).padding(0.18);
+
+    const ticks = W < 480 ? 3 : 5;
+    const gx = svg.append('g').attr('transform', `translate(0,${H - bottom})`)
+      .call(d3.axisBottom(x).ticks(ticks).tickFormat((v) => compact.format(v)).tickSize(-(H - bottom - top)))
+      .attr('font-size', null).attr('font-family', null);
+    gx.select('.domain').remove();
+    gx.selectAll('line').attr('stroke', 'var(--cds-chart-grid)');
+    gx.selectAll('text').attr('fill', 'var(--color-fg-muted)').style('font-size', 'var(--cds-font-size-caption)').attr('dy', '1.1em');
+
+    const g = svg.append('g').selectAll('g').data(rows).join('g').attr('class', 'tx-bar-row').attr('transform', (r) => `translate(0,${y(r.id)})`);
+    const bh = y.bandwidth();
+    const grow = motion && !played.chart;
+    played.chart = true;
+    g.append('text').attr('x', left - 8).attr('y', bh / 2).attr('dy', '0.35em').attr('text-anchor', 'end')
+      .attr('fill', 'var(--color-fg)').style('font-size', 'var(--cds-font-size-caption)').text((r) => r.name)
+      .each(function () { // truncate if needed
+        const el = this; let s = el.textContent;
+        while (el.getComputedTextLength() > left - 12 && s.length > 3) { s = s.slice(0, -1); el.textContent = s + '…'; }
+      });
+    // bars: sent, then received, then active grow in, staggered row by row
+    const layers = [
+      { key: 'sent', y: 0, h: 1, rx: 3, fill: 'var(--cds-chart-muted)', wait: 0 },
+      { key: 'recv', y: 0.2, h: 0.6, rx: 3, fill: dash.colors[0], wait: 250 },
+      { key: 'act', y: 0.35, h: 0.3, rx: 2, fill: dash.colors[1], wait: 500 },
+    ];
+    const base = 450; // let the card rise first
+    layers.forEach((L) => {
+      const bars = g.append('rect').attr('x', left).attr('y', bh * L.y).attr('height', bh * L.h).attr('rx', L.rx).attr('fill', L.fill);
+      const w = (r) => Math.max(0, x(r[L.key]) - left);
+      if (grow) bars.attr('width', 0).transition().delay((r, i) => base + L.wait + i * 45).duration(800).ease(d3.easeCubicOut).attr('width', w);
+      else bars.attr('width', w);
+    });
+    const ends = g.append('text').attr('x', (r) => x(r.sent) + 6).attr('y', bh / 2).attr('dy', '0.35em')
+      .attr('fill', 'var(--color-fg-muted)').style('font-size', 'var(--cds-font-size-caption)')
+      .text((r) => pct(r.sent ? r.recv / r.sent : 0));
+    if (grow) ends.attr('opacity', 0).transition().delay((r, i) => base + 900 + i * 45).duration(400).attr('opacity', 1);
+
+    // tooltip
+    const tip = document.createElement('div'); tip.className = 'tx-tip'; tip.hidden = true; chartBox.appendChild(tip);
+    const line = (color, label, val) => { const r = document.createElement('div'); r.className = 'tx-tip-r'; const i = document.createElement('i'); i.style.background = color; const s = document.createElement('span'); s.textContent = `${label}: ${val}`; r.append(i, s); return r; };
+    g.append('rect').attr('x', 0).attr('y', 0).attr('width', W).attr('height', bh).attr('fill', 'transparent')
+      .on('mouseenter', function () {
+        chartBox.classList.add('tx-hovering');
+        g.classed('tx-on', false);
+        d3.select(this.parentNode).classed('tx-on', true);
+      })
+      .on('mousemove', (event, r) => {
+        const h = document.createElement('div'); h.className = 'tx-tip-h'; h.textContent = `${r.name} · ${r.id}`;
+        tip.replaceChildren(h,
+          line('var(--cds-chart-muted)', 'Sent', fmtN(r.sent)),
+          line(dash.colors[0], 'Received', `${fmtN(r.recv)} (${pct(r.sent ? r.recv / r.sent : 0)})`),
+          line(dash.colors[1], 'Active', `${fmtN(r.act)} (${pct(r.recv ? r.act / r.recv : 0)})`));
+        tip.hidden = false;
+        const [px, py] = d3.pointer(event, chartBox);
+        const tw = tip.offsetWidth, cw = chartBox.clientWidth;
+        tip.style.left = Math.max(0, Math.min(px + 12, cw - tw)) + 'px';
+        tip.style.top = (py + 14) + 'px';
+      })
+      .on('mouseleave', function () {
+        tip.hidden = true;
+        chartBox.classList.remove('tx-hovering');
+        d3.select(this.parentNode).classed('tx-on', false);
+      });
+    drawnOnce = true;
+  }
+
+  // ---------- Table ----------
+  const table = root.querySelector('.tx-table');
+  const tbody = table.querySelector('tbody');
+  const search = root.querySelector('.tx-search');
+  const count = root.querySelector('.tx-count');
+  let sortKey = 'LastTransmissionAtUTC', sortDir = -1;
+  const numeric = new Set(['ThirdPartyDataId', 'CPMRate', 'UIDsSent', 'ReceivedIDsCount', 'ActiveIDsCount', 'MatchRate', 'ActiveRate']);
+  table.querySelectorAll('th').forEach((th) => th.querySelector('button').addEventListener('click', () => {
+    const k = th.dataset.k;
+    if (sortKey === k) sortDir = -sortDir; else { sortKey = k; sortDir = numeric.has(k) ? -1 : 1; }
+    drawTable.reflow = true;
+    drawTable();
+  }));
+  search.addEventListener('input', () => { drawTable.reflow = true; drawTable(); });
+
+  function drawTable() {
+    const d = dash.data('taxonomies');
+    const rt = dash.data('rates');
+    table.querySelectorAll('th').forEach((th) => th.setAttribute('aria-sort', th.dataset.k === sortKey ? (sortDir > 0 ? 'ascending' : 'descending') : 'none'));
+    if (d.status !== 'ok') {
+      tbody.replaceChildren();
+      count.textContent = '';
+      if (d.status === 'error') { const tr = tbody.insertRow(); const td = tr.insertCell(); td.colSpan = 12; failLine(td); }
+      return;
+    }
+    const rates = new Map((rt.status === 'ok' && Array.isArray(rt.data) ? rt.data : []).map((r) => [r.TaxonomyId, r]));
+    const q = search.value.trim().toLowerCase();
+    let rows = d.data.map((r) => ({ ...r, ...(rates.get(r.TaxonomyId) || {}) }));
+    if (q) rows = rows.filter((r) => [r.DisplayName, r.Description, r.TaxonomyId, r.ThirdPartyDataId, r.ProviderElementId, r.TaxonomyComplianceStatus].join(' ').toLowerCase().includes(q));
+    rows.sort((a, b) => {
+      const av = numeric.has(sortKey) ? Number(a[sortKey]) : String(a[sortKey] ?? '');
+      const bv = numeric.has(sortKey) ? Number(b[sortKey]) : String(b[sortKey] ?? '');
+      return (av < bv ? -1 : av > bv ? 1 : 0) * sortDir;
+    });
+    count.textContent = `${rows.length} of ${d.data.length} taxonomies`;
+    tbody.replaceChildren();
+    const statusCls = { Approved: 'tx-ok', Pending: 'tx-warn', Rejected: 'tx-bad' };
+    // rows fade in on first load, and again (quickly) whenever a sort or search reorders them
+    const fresh = motion && (!played.table || drawTable.reflow);
+    const firstTime = !played.table;
+    played.table = true;
+    drawTable.reflow = false;
+    rows.forEach((r, i) => {
+      const tr = tbody.insertRow();
+      tr.dataset.key = r.TaxonomyId;
+      if (fresh) { tr.classList.add('tx-row-in'); tr.style.animationDelay = `${(firstTime ? 600 : 0) + i * (firstTime ? 40 : 18)}ms`; }
+      const cell = (text, cls) => { const td = tr.insertCell(); td.textContent = text; if (cls) td.className = cls; return td; };
+      cell(r.DisplayName, 'tx-name');
+      cell(r.TaxonomyId);
+      cell(String(r.ThirdPartyDataId), 'num tx-hide');
+      cell(r.TaxonomyComplianceStatus, statusCls[r.TaxonomyComplianceStatus] || '');
+      cell(r.CPMRate == null ? '—' : d3.format('$.2f')(r.CPMRate), 'num tx-hide');
+      cell(fmtN(r.UIDsSent), 'num');
+      cell(fmtN(r.ReceivedIDsCount), 'num');
+      cell(fmtN(r.ActiveIDsCount), 'num');
+      cell(r.MatchRate == null ? '—' : pct(r.MatchRate), 'num tx-hide');
+      cell(r.ActiveRate == null ? '—' : pct(r.ActiveRate), 'num tx-hide');
+      const lu = parse(r.LastUpdatedAtUTC);
+      cell(lu ? fmtDate(lu) : '—', 'tx-hide');
+      const lt = parse(r.LastTransmissionAtUTC);
+      cell(lt ? fmtDate(lt) : '—', r.DaysSinceTx >= 7 ? 'tx-stale' : '');
+    });
+  }
+
+  dash.onData(() => { drawSummary(); drawChart(); drawTable(); });
+})();
+</script>
+
+</div>
+</body>
+</html>
